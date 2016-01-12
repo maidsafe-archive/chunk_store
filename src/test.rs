@@ -86,7 +86,7 @@ mod test {
 
         match store.put(&name, &data) {
             Err(Error::NotEnoughSpace) => (),
-            result => panic!("Expecting Error::NotEnoughSpace, got {:?}", result)
+            result => panic!("Expecting Error::NotEnoughSpace, got {:?}", result),
         }
     }
 

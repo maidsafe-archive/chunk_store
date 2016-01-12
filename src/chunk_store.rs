@@ -26,7 +26,7 @@ use std::path::Path;
 use tempdir::TempDir;
 use xor_name::{XorName, slice_as_u8_64_array};
 
-const NOT_ENOUGH_SPACE_ERROR : &'static str = "Not enough storage space";
+const NOT_ENOUGH_SPACE_ERROR: &'static str = "Not enough storage space";
 
 #[allow(missing_docs)]
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::Io(ref error) => error.fmt(f),
-            Error::NotEnoughSpace => write!(f, "{}", NOT_ENOUGH_SPACE_ERROR)
+            Error::NotEnoughSpace => write!(f, "{}", NOT_ENOUGH_SPACE_ERROR),
         }
     }
 }
@@ -54,14 +54,14 @@ impl error::Error for Error {
     fn description(&self) -> &str {
         match *self {
             Error::Io(ref error) => error.description(),
-            Error::NotEnoughSpace => NOT_ENOUGH_SPACE_ERROR
+            Error::NotEnoughSpace => NOT_ENOUGH_SPACE_ERROR,
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             Error::Io(ref error) => Some(error),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -82,18 +82,18 @@ impl ChunkStore {
     /// The data are stored in a temporary directory that contains `prefix`
     /// in its name and is placed in the `root` directory.
     /// If `root` doesn't exist, it will be created.
-    pub fn new_in(root: &Path, prefix: &str, max_space: usize)
-        -> Result<ChunkStore, Error> {
+    pub fn new_in(root: &Path, prefix: &str, max_space: usize) -> Result<ChunkStore, Error> {
 
-        fs::create_dir_all(root).and_then(|()| {
-            TempDir::new_in(root, prefix)
-        }).map(|tempdir| {
-            ChunkStore {
-                tempdir: tempdir,
-                max_space: max_space,
-                used_space: 0,
-            }
-        }).map_err(From::from)
+        fs::create_dir_all(root)
+            .and_then(|()| TempDir::new_in(root, prefix))
+            .map(|tempdir| {
+                ChunkStore {
+                    tempdir: tempdir,
+                    max_space: max_space,
+                    used_space: 0,
+                }
+            })
+            .map_err(From::from)
     }
 
     /// Create new chunkstore storing the data inside the system temp directory.
@@ -117,15 +117,16 @@ impl ChunkStore {
         let path_name = ::std::path::Path::new(&hex_name);
         let path = self.tempdir.path().join(path_name);
 
-        File::create(&path).and_then(|mut file| {
-            file.write_all(value).and_then(|()| {
-                file.sync_all()
-            }).and_then(|()| {
-                file.metadata()
-            }).map(|metadata| {
-                self.used_space += metadata.len() as usize;
+        File::create(&path)
+            .and_then(|mut file| {
+                file.write_all(value)
+                    .and_then(|()| file.sync_all())
+                    .and_then(|()| file.metadata())
+                    .map(|metadata| {
+                        self.used_space += metadata.len() as usize;
+                    })
             })
-        }).map_err(From::from)
+            .map_err(From::from)
     }
 
     #[allow(missing_docs)]
@@ -149,10 +150,11 @@ impl ChunkStore {
             .and_then(|entry| fs::File::open(&entry.path()).ok())
             .and_then(|mut file| {
                 let mut contents = Vec::<u8>::new();
-                file.read_to_end(&mut contents).map(|_| {
-                    contents
-                }).ok()
-            }).unwrap_or(Vec::new())
+                file.read_to_end(&mut contents)
+                    .map(|_| contents)
+                    .ok()
+            })
+            .unwrap_or(Vec::new())
     }
 
     #[allow(missing_docs)]
@@ -165,12 +167,15 @@ impl ChunkStore {
         use rustc_serialize::hex::FromHex;
         ::std::fs::read_dir(&self.tempdir.path())
             .and_then(|dir_entries| {
-                let dir_entry_to_routing_name = |dir_entry: ::std::io::Result<::std::fs::DirEntry>| {
-                    dir_entry.ok()
-                             .and_then(|entry| entry.file_name().into_string().ok())
-                             .and_then(|hex_name| hex_name.from_hex().ok())
-                             .and_then(|bytes| Some(XorName::new(slice_as_u8_64_array(&*bytes))))
-                };
+                let dir_entry_to_routing_name =
+                    |dir_entry: ::std::io::Result<::std::fs::DirEntry>| {
+                        dir_entry.ok()
+                                 .and_then(|entry| entry.file_name().into_string().ok())
+                                 .and_then(|hex_name| hex_name.from_hex().ok())
+                                 .and_then(|bytes| {
+                                     Some(XorName::new(slice_as_u8_64_array(&*bytes)))
+                                 })
+                    };
                 Ok(dir_entries.filter_map(dir_entry_to_routing_name).collect())
             })
             .unwrap_or(vec![])
@@ -200,13 +205,12 @@ impl ChunkStore {
         fs::read_dir(self.tempdir.path()).ok().and_then(|mut entries| {
             let hex_name = self.to_hex_string(name);
             entries.find(|entry| {
-                match *entry {
-                    Ok(ref entry) => entry.file_name().to_str() == Some(&hex_name),
-                    Err(_) => false,
-                }
-            }).and_then(|entry| {
-                entry.ok()
-            })
+                       match *entry {
+                           Ok(ref entry) => entry.file_name().to_str() == Some(&hex_name),
+                           Err(_) => false,
+                       }
+                   })
+                   .and_then(|entry| entry.ok())
         })
     }
 }

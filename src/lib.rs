@@ -42,7 +42,8 @@ extern crate tempdir;
 extern crate xor_name;
 
 #[cfg(test)]
-#[allow(unused_extern_crates)] // not unused - but using only macros.
+// not unused - but using only macros.
+#[allow(unused_extern_crates)]
 #[macro_use]
 extern crate maidsafe_utilities;
 
