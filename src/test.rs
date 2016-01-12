@@ -39,7 +39,7 @@ mod test {
 
     #[test]
     fn tempdir_cleanup() {
-        let root = TempDir::new("test").unwrap();
+        let root = unwrap_result!(TempDir::new("test"));
 
         {
             let _store = ChunkStore::new_in(root.path(), "test", 64);
