@@ -160,38 +160,33 @@ impl ChunkStore {
     }
 
     fn cleanup() {
-        let vault_pids = Self::get_all_vault_pids();
-        match vault_pids {
-            Some(safe_vault_pids) => {
-                let own_pid = format!("{}", Self::get_own_pid());
-                let _ = ::std::fs::read_dir(::std::env::temp_dir()).ok().and_then(|dir_entries| {
-                    let own_dir: Vec<Result<::std::fs::DirEntry, ::std::io::Error>>
-                            = dir_entries.filter(|dir_entry| {
-                        match dir_entry {
-                            &Ok(ref entry) => {
-                                let line = entry.file_name().into_string().ok().unwrap_or(String::from(""));
-                                match (line.contains("safe_vault"), line.contains(&own_pid)) {
-                                    (true, false) => {
-                                        let v: Vec<&str> = line.split("-").collect();
-                                        if v.len() > 1 && !safe_vault_pids.contains(&String::from(v[1])) {
-                                            // As the dir itself is not atomic, there is chance other vault
-                                            // has cleaned up the directory, no need to panic here
-                                            let _ = ::std::fs::remove_dir_all(entry.path());
-                                        }
-                                    }
-                                    (true, true) => return true,
-                                    (false, _) => {},
+        let safe_vault_pids = Self::get_all_vault_pids();
+        let own_pid = format!("{}", Self::get_own_pid());
+        let _ = ::std::fs::read_dir(::std::env::temp_dir()).ok().and_then(|dir_entries| {
+            let own_dir: Vec<Result<::std::fs::DirEntry, ::std::io::Error>>
+                    = dir_entries.filter(|dir_entry| {
+                match dir_entry {
+                    &Ok(ref entry) => {
+                        let line = entry.file_name().into_string().ok().unwrap_or(String::from(""));
+                        match (line.contains("safe_vault"), line.contains(&own_pid)) {
+                            (true, false) => {
+                                let v: Vec<&str> = line.split("-").collect();
+                                if v.len() > 1 && !safe_vault_pids.contains(&String::from(v[1])) {
+                                    // As the dir itself is not atomic, there is chance other vault
+                                    // has cleaned up the directory, no need to panic here
+                                    let _ = ::std::fs::remove_dir_all(entry.path());
                                 }
                             }
-                            &Err(_) => {},
+                            (true, true) => return true,
+                            (false, _) => {},
                         }
-                        false
-                    }).collect();
-                    Some(own_dir.len())
-                });
-            }
-            None => {}
-        }
+                    }
+                    &Err(_) => {},
+                }
+                false
+            }).collect();
+            Some(own_dir.len())
+        });
     }
 
     #[allow(unsafe_code)]
@@ -203,45 +198,38 @@ impl ChunkStore {
     }
 
     #[cfg(windows)]
-    fn get_all_vault_pids() -> Option<Vec<String>> {
-        let output = match ::std::process::Command::new("tasklist").output() {
-            Ok(output) => output,
+    fn get_all_vault_pids() -> Vec<String> {
+        match ::std::process::Command::new("tasklist").output() {
+            Ok(output) => Self::find_safe_vault_processes(&output.stdout, 1),
             Err(e) => {
                 warn!("failed to execute process: {}", e);
-                return None;
+                Vec::new()
             }
-        };
-        Some(Self::find_safe_vault_processes(String::from_utf8_lossy(&output.stdout)
-                                                 .split("\n")
-                                                 .collect(),
-                                             1))
+        }
     }
 
     #[cfg(not(windows))]
-    fn get_all_vault_pids() -> Option<Vec<String>> {
-        let output = match ::std::process::Command::new("ps").arg("-h").output() {
-            Ok(output) => output,
+    fn get_all_vault_pids() -> Vec<String> {
+        match ::std::process::Command::new("ps").arg("-h").output() {
+            Ok(output) => Self::find_safe_vault_processes(&output.stdout, 0),
             Err(e) => {
                 warn!("failed to execute process: {}", e);
-                return None;
+                Vec::new()
             }
-        };
-        Some(Self::find_safe_vault_processes(String::from_utf8_lossy(&output.stdout)
-                                                 .split("\n")
-                                                 .collect(),
-                                             0))
+        }
     }
 
-    fn find_safe_vault_processes(lines: Vec<&str>, column: usize) -> Vec<String> {
-        lines.iter()
-             .filter_map(|line| {
-                 if line.contains("safe_vault") {
-                     let vv: Vec<&str> = line.split_whitespace().collect();
-                     Some(String::from(vv[column]))
-                 } else {
-                     None
-                 }
-             })
-             .collect()
+    fn find_safe_vault_processes(output: &[u8], column: usize) -> Vec<String> {
+        String::from_utf8_lossy(output)
+            .lines()
+            .filter_map(|line| {
+                if line.contains("safe_vault") {
+                    let vv: Vec<&str> = line.split_whitespace().collect();
+                    Some(String::from(vv[column]))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
