@@ -157,15 +157,12 @@ impl ChunkStore {
     pub fn names(&self) -> Vec<XorName> {
         fs::read_dir(&self.tempdir.path())
             .and_then(|dir_entries| {
-                let dir_entry_to_routing_name =
-                    |dir_entry: io::Result<fs::DirEntry>| {
-                        dir_entry.ok()
-                                 .and_then(|entry| entry.file_name().into_string().ok())
-                                 .and_then(|hex_name| hex_name.from_hex().ok())
-                                 .and_then(|bytes| {
-                                     Some(XorName::new(slice_as_u8_64_array(&*bytes)))
-                                 })
-                    };
+                let dir_entry_to_routing_name = |dir_entry: io::Result<fs::DirEntry>| {
+                    dir_entry.ok()
+                             .and_then(|entry| entry.file_name().into_string().ok())
+                             .and_then(|hex_name| hex_name.from_hex().ok())
+                             .and_then(|bytes| Some(XorName::new(slice_as_u8_64_array(&*bytes))))
+                };
                 Ok(dir_entries.filter_map(dir_entry_to_routing_name).collect())
             })
             .unwrap_or(vec![])
