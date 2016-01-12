@@ -1,0 +1,21 @@
+[package]
+name = "chunk_store"
+version = "0.1.0"
+authors = ["MaidSafe Developers <dev@maidsafe.net>"]
+description = "Simple non-persistent key-value store"
+# documentation = "http://maidsafe.net/chunk_store/latest"
+repository = "https://github.com/maidsafe/chunk_store"
+readme = "README.md"
+license = "GPL-3.0"
+homepage = "http://maidsafe.net"
+
+
+[dependencies]
+log = "~0.3.4"
+rustc-serialize = "~0.3.16"
+tempdir = "~0.3.4"
+xor_name = "~0.0.1"
+
+[dev-dependencies]
+maidsafe_utilities = "~0.1.5"
+rand = "~0.3.12"

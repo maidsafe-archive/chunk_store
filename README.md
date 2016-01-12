@@ -1,1 +1,3 @@
-# chunk_store
+# Chunk Store
+
+Simple, non-persistent, disk based key-value store.
