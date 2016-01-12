@@ -37,8 +37,6 @@
 #![allow(box_pointers, fat_ptr_transmutes, missing_copy_implementations,
          missing_debug_implementations)]
 
-#[macro_use]
-extern crate log;
 extern crate rustc_serialize;
 extern crate tempdir;
 extern crate xor_name;
@@ -51,7 +49,7 @@ extern crate maidsafe_utilities;
 #[cfg(test)]
 extern crate rand;
 
-pub use chunk_store::ChunkStore;
+pub use chunk_store::{ChunkStore, Error};
 
 mod chunk_store;
 mod test;

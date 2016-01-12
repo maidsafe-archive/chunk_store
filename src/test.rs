@@ -17,7 +17,7 @@
 
 #[cfg(test)]
 mod test {
-    use chunk_store::ChunkStore;
+    use chunk_store::{ChunkStore, Error};
     use rand;
     use std::fs;
     use std::path::Path;
@@ -59,13 +59,13 @@ mod test {
             let mut put = |size| {
                 let name = rand::random();
                 let data = generate_random_bytes(size);
-                let size_before_insert = chunk_store.current_disk_usage();
+                let size_before_insert = chunk_store.used_space();
                 assert!(!chunk_store.has_chunk(&name));
-                chunk_store.put(&name, data);
-                assert_eq!(chunk_store.current_disk_usage(), size + size_before_insert);
+                unwrap_result!(chunk_store.put(&name, &data));
+                assert_eq!(chunk_store.used_space(), size + size_before_insert);
                 assert!(chunk_store.has_chunk(&name));
                 names.push(name);
-                chunk_store.current_disk_usage()
+                chunk_store.used_space()
             };
 
             assert_eq!(put(1usize), 1usize);
@@ -77,7 +77,18 @@ mod test {
         assert_eq!(names.sort(), chunk_store.names().sort());
     }
 
-    // TODO: put failure due to exceeded storage space
+    #[test]
+    fn failed_put_when_not_enough_space() {
+        let k_disk_size = 32;
+        let mut store = unwrap_result!(ChunkStore::new("test", k_disk_size));
+        let name = rand::random();
+        let data = generate_random_bytes(k_disk_size + 1);
+
+        match store.put(&name, &data) {
+            Err(Error::NotEnoughSpace) => (),
+            result => panic!("Expecting Error::NotEnoughSpace, got {:?}", result)
+        }
+    }
 
     #[test]
     fn delete() {
@@ -89,10 +100,10 @@ mod test {
             let name = rand::random();
             let data = generate_random_bytes(size);
 
-            chunk_store.put(&name, data);
-            assert_eq!(chunk_store.current_disk_usage(), size);
-            chunk_store.delete(&name);
-            assert_eq!(chunk_store.current_disk_usage(), 0);
+            unwrap_result!(chunk_store.put(&name, &data));
+            assert_eq!(chunk_store.used_space(), size);
+            unwrap_result!(chunk_store.delete(&name));
+            assert_eq!(chunk_store.used_space(), 0);
         };
 
         put_and_delete(k_size);
@@ -107,10 +118,10 @@ mod test {
 
         let name = rand::random();
         let data = generate_random_bytes(data_size);
-        chunk_store.put(&name, data.clone());
+        unwrap_result!(chunk_store.put(&name, &data));
         let recovered = chunk_store.get(&name);
         assert_eq!(data, recovered);
-        assert_eq!(chunk_store.current_disk_usage(), data_size);
+        assert_eq!(chunk_store.used_space(), data_size);
     }
 
     #[test]
@@ -120,8 +131,8 @@ mod test {
 
         let mut put = |name, size| {
             let data = generate_random_bytes(size);
-            chunk_store.put(&name, data);
-            chunk_store.current_disk_usage()
+            unwrap_result!(chunk_store.put(&name, &data));
+            chunk_store.used_space()
         };
 
         let name = rand::random::<XorName>();

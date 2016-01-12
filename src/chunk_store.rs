@@ -15,21 +15,54 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use std::cmp;
 use std::env;
+use std::error;
+use std::fmt;
 use std::fs;
+use std::fs::File;
 use std::io;
 use std::path::Path;
 use tempdir::TempDir;
 use xor_name::{XorName, slice_as_u8_64_array};
 
+const NOT_ENOUGH_SPACE_ERROR : &'static str = "Not enough storage space";
+
+#[allow(missing_docs)]
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
+    NotEnoughSpace,
 }
 
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Error {
         Error::Io(error)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Error::Io(ref error) => error.fmt(f),
+            Error::NotEnoughSpace => write!(f, "{}", NOT_ENOUGH_SPACE_ERROR)
+        }
+    }
+}
+
+impl error::Error for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::Io(ref error) => error.description(),
+            Error::NotEnoughSpace => NOT_ENOUGH_SPACE_ERROR
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            Error::Io(ref error) => Some(error),
+            _ => None
+        }
     }
 }
 
@@ -39,17 +72,17 @@ impl From<io::Error> for Error {
 /// The data chunks are deleted when the ChunkStore goes out of scope.
 pub struct ChunkStore {
     tempdir: TempDir,
-    max_disk_usage: usize,
-    current_disk_usage: usize,
+    max_space: usize,
+    used_space: usize,
 }
 
 impl ChunkStore {
-    /// Create new chunkstore with `max_disk_usage` allowed disk usage.
+    /// Create new ChunkStore with `max_space` allowed storage space.
     ///
     /// The data are stored in a temporary directory that contains `prefix`
     /// in its name and is placed in the `root` directory.
     /// If `root` doesn't exist, it will be created.
-    pub fn new_in(root: &Path, prefix: &str, max_disk_usage: usize)
+    pub fn new_in(root: &Path, prefix: &str, max_space: usize)
         -> Result<ChunkStore, Error> {
 
         fs::create_dir_all(root).and_then(|()| {
@@ -57,10 +90,10 @@ impl ChunkStore {
         }).map(|tempdir| {
             ChunkStore {
                 tempdir: tempdir,
-                max_disk_usage: max_disk_usage,
-                current_disk_usage: 0,
+                max_space: max_space,
+                used_space: 0,
             }
-        }).map_err(|error| From::from(error))
+        }).map_err(From::from)
     }
 
     /// Create new chunkstore storing the data inside the system temp directory.
@@ -69,65 +102,57 @@ impl ChunkStore {
     }
 
     #[allow(missing_docs)]
-    pub fn put(&mut self, name: &XorName, value: Vec<u8>) {
+    pub fn put(&mut self, name: &XorName, value: &[u8]) -> Result<(), Error> {
         use std::io::Write;
 
-        if !self.has_disk_space(value.len()) {
-            return warn!("Not enough space in ChunkStore.");
+        if !self.has_space(value.len()) {
+            return Err(Error::NotEnoughSpace);
         }
 
         // If a file with name 'name' already exists, delete it.
-        self.delete(name);
+        // We don't care if the delete fails here.
+        let _ = self.delete(name);
 
         let hex_name = self.to_hex_string(name);
         let path_name = ::std::path::Path::new(&hex_name);
         let path = self.tempdir.path().join(path_name);
-        let _ = ::std::fs::File::create(&path)
-                    .and_then(|mut file| {
-                        file.write(&value[..])
-                            .and_then(|size| {
-                                self.current_disk_usage += size;
-                                file.sync_all().map(|_| self.current_disk_usage)
-                            })
-                            .map(|_| file)
-                    })
-                    .or_else(|error| {
-                        error!("ChunkStore failed to put to file {:?}: {}", path, error);
-                        Err(error)
-                    });
+
+        File::create(&path).and_then(|mut file| {
+            file.write_all(value).and_then(|()| {
+                file.sync_all()
+            }).and_then(|()| {
+                file.metadata()
+            }).map(|metadata| {
+                self.used_space += metadata.len() as usize;
+            })
+        }).map_err(From::from)
     }
 
     #[allow(missing_docs)]
-    pub fn delete(&mut self, name: &XorName) {
-        let _ = self.dir_entry(name)
-                    .and_then(|entry| {
-                        let _ = entry.metadata()
-                                     .and_then(|metadata| Ok(self.current_disk_usage -= metadata.len() as usize))
-                                     .or_else(|error| {
-                                         error!("ChunkStore failed to get metadata for {:?}: {}",
-                                                entry.path(),
-                                                error);
-                                         Err(error)
-                                     });
-                        ::std::fs::remove_file(entry.path())
-                            .or_else(|error| {
-                                error!("ChunkStore failed to remove {:?}: {}", entry.path(), error);
-                                Err(error)
-                            })
-                            .ok()
-                    });
+    pub fn delete(&mut self, name: &XorName) -> Result<(), Error> {
+        if let Some(entry) = self.dir_entry(name) {
+            if let Ok(metadata) = entry.metadata() {
+                self.used_space -= cmp::min(metadata.len() as usize, self.used_space);
+            }
+
+            fs::remove_file(entry.path()).map_err(From::from)
+        } else {
+            Ok(())
+        }
     }
 
     #[allow(missing_docs)]
     pub fn get(&self, name: &XorName) -> Vec<u8> {
         use std::io::Read;
+
         self.dir_entry(name)
-            .and_then(|entry| ::std::fs::File::open(&entry.path()).ok())
+            .and_then(|entry| fs::File::open(&entry.path()).ok())
             .and_then(|mut file| {
                 let mut contents = Vec::<u8>::new();
-                file.read_to_end(&mut contents).ok().and_then(|_| Some(contents))
-            })
-            .unwrap_or(vec![])
+                file.read_to_end(&mut contents).map(|_| {
+                    contents
+                }).ok()
+            }).unwrap_or(Vec::new())
     }
 
     #[allow(missing_docs)]
@@ -152,18 +177,18 @@ impl ChunkStore {
     }
 
     #[allow(missing_docs)]
-    pub fn max_disk_usage(&self) -> usize {
-        self.max_disk_usage
+    pub fn max_space(&self) -> usize {
+        self.max_space
     }
 
     #[allow(missing_docs)]
-    pub fn current_disk_usage(&self) -> usize {
-        self.current_disk_usage
+    pub fn used_space(&self) -> usize {
+        self.used_space
     }
 
     #[allow(missing_docs)]
-    pub fn has_disk_space(&self, required_space: usize) -> bool {
-        self.current_disk_usage + required_space <= self.max_disk_usage
+    pub fn has_space(&self, required_space: usize) -> bool {
+        self.used_space + required_space <= self.max_space
     }
 
     fn to_hex_string(&self, name: &XorName) -> String {
@@ -171,16 +196,17 @@ impl ChunkStore {
         name.get_id().to_hex()
     }
 
-    fn dir_entry(&self, name: &XorName) -> Option<::std::fs::DirEntry> {
-        ::std::fs::read_dir(&self.tempdir.path()).ok().and_then(|mut dir_entries| {
+    fn dir_entry(&self, name: &XorName) -> Option<fs::DirEntry> {
+        fs::read_dir(self.tempdir.path()).ok().and_then(|mut entries| {
             let hex_name = self.to_hex_string(name);
-            dir_entries.find(|dir_entry| {
-                           match dir_entry {
-                               &Ok(ref entry) => entry.file_name().to_str() == Some(&hex_name[..]),
-                               &Err(_) => false,
-                           }
-                       })
-                       .and_then(|entry_result| entry_result.ok())
+            entries.find(|entry| {
+                match *entry {
+                    Ok(ref entry) => entry.file_name().to_str() == Some(&hex_name),
+                    Err(_) => false,
+                }
+            }).and_then(|entry| {
+                entry.ok()
+            })
         })
     }
 }
