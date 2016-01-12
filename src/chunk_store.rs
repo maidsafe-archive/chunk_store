@@ -15,32 +15,57 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use error::Error;
+use std::env;
+use std::fs;
+use std::io;
+use std::path::Path;
+use tempdir::TempDir;
 use xor_name::{XorName, slice_as_u8_64_array};
+
+#[derive(Debug)]
+pub enum Error {
+    Io(io::Error),
+}
+
+impl From<io::Error> for Error {
+    fn from(error: io::Error) -> Error {
+        Error::Io(error)
+    }
+}
 
 /// ChunkStore is a collection for holding all data chunks.
 /// Implements a maximum disk usage to restrict storage.
+///
+/// The data chunks are deleted when the ChunkStore goes out of scope.
 pub struct ChunkStore {
-    tempdir: ::tempdir::TempDir,
+    tempdir: TempDir,
     max_disk_usage: usize,
     current_disk_usage: usize,
 }
 
 impl ChunkStore {
     /// Create new chunkstore with `max_disk_usage` allowed disk usage.
-    pub fn new(max_disk_usage: usize) -> Result<ChunkStore, Error> {
-        Self::cleanup();
-        let folder_name = format!("safe_vault-{}/", Self::get_own_pid());
-        let mut path = ::std::env::temp_dir();
-        path.push(folder_name);
-        let _ = ::std::fs::create_dir(&path);
+    ///
+    /// The data are stored in a temporary directory that contains `prefix`
+    /// in its name and is placed in the `root` directory.
+    /// If `root` doesn't exist, it will be created.
+    pub fn new_in(root: &Path, prefix: &str, max_disk_usage: usize)
+        -> Result<ChunkStore, Error> {
 
-        let tempdir = try!(::tempdir::TempDir::new_in(path, "chunk_store"));
-        Ok(ChunkStore {
-            tempdir: tempdir,
-            max_disk_usage: max_disk_usage,
-            current_disk_usage: 0,
-        })
+        fs::create_dir_all(root).and_then(|()| {
+            TempDir::new_in(root, prefix)
+        }).map(|tempdir| {
+            ChunkStore {
+                tempdir: tempdir,
+                max_disk_usage: max_disk_usage,
+                current_disk_usage: 0,
+            }
+        }).map_err(|error| From::from(error))
+    }
+
+    /// Create new chunkstore storing the data inside the system temp directory.
+    pub fn new(prefix: &str, max_disk_usage: usize) -> Result<ChunkStore, Error> {
+        Self::new_in(&env::temp_dir(), prefix, max_disk_usage)
     }
 
     #[allow(missing_docs)]
@@ -157,79 +182,5 @@ impl ChunkStore {
                        })
                        .and_then(|entry_result| entry_result.ok())
         })
-    }
-
-    fn cleanup() {
-        let safe_vault_pids = Self::get_all_vault_pids();
-        let own_pid = format!("{}", Self::get_own_pid());
-        let _ = ::std::fs::read_dir(::std::env::temp_dir()).ok().and_then(|dir_entries| {
-            let own_dir: Vec<Result<::std::fs::DirEntry, ::std::io::Error>>
-                    = dir_entries.filter(|dir_entry| {
-                match dir_entry {
-                    &Ok(ref entry) => {
-                        let line = entry.file_name().into_string().ok().unwrap_or(String::from(""));
-                        match (line.contains("safe_vault"), line.contains(&own_pid)) {
-                            (true, false) => {
-                                let v: Vec<&str> = line.split("-").collect();
-                                if v.len() > 1 && !safe_vault_pids.contains(&String::from(v[1])) {
-                                    // As the dir itself is not atomic, there is chance other vault
-                                    // has cleaned up the directory, no need to panic here
-                                    let _ = ::std::fs::remove_dir_all(entry.path());
-                                }
-                            }
-                            (true, true) => return true,
-                            (false, _) => {},
-                        }
-                    }
-                    &Err(_) => {},
-                }
-                false
-            }).collect();
-            Some(own_dir.len())
-        });
-    }
-
-    #[allow(unsafe_code)]
-    fn get_own_pid() -> u32 {
-        extern "C" {
-            fn getpid() -> u32;
-        }
-        unsafe { getpid() }
-    }
-
-    #[cfg(windows)]
-    fn get_all_vault_pids() -> Vec<String> {
-        match ::std::process::Command::new("tasklist").output() {
-            Ok(output) => Self::find_safe_vault_processes(&output.stdout, 1),
-            Err(e) => {
-                warn!("failed to execute process: {}", e);
-                Vec::new()
-            }
-        }
-    }
-
-    #[cfg(not(windows))]
-    fn get_all_vault_pids() -> Vec<String> {
-        match ::std::process::Command::new("ps").arg("-h").output() {
-            Ok(output) => Self::find_safe_vault_processes(&output.stdout, 0),
-            Err(e) => {
-                warn!("failed to execute process: {}", e);
-                Vec::new()
-            }
-        }
-    }
-
-    fn find_safe_vault_processes(output: &[u8], column: usize) -> Vec<String> {
-        String::from_utf8_lossy(output)
-            .lines()
-            .filter_map(|line| {
-                if line.contains("safe_vault") {
-                    let vv: Vec<&str> = line.split_whitespace().collect();
-                    Some(String::from(vv[column]))
-                } else {
-                    None
-                }
-            })
-            .collect()
     }
 }

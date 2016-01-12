@@ -54,5 +54,4 @@ extern crate rand;
 pub use chunk_store::ChunkStore;
 
 mod chunk_store;
-mod error;
 mod test;

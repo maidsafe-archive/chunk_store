@@ -17,60 +17,51 @@
 
 #[cfg(test)]
 mod test {
-    use rand::random;
+    use chunk_store::ChunkStore;
+    use rand;
+    use std::fs;
+    use std::path::Path;
+    use tempdir::TempDir;
     use xor_name::XorName;
 
-    fn get_random_non_empty_string(length: usize) -> String {
+    fn generate_random_bytes(size: usize) -> Vec<u8> {
         use rand::Rng;
-        let mut string = String::new();
-        for char in ::rand::thread_rng().gen_ascii_chars().take(length) {
-            string.push(char);
-        }
-        string
+        rand::thread_rng().gen_iter().take(size).collect()
     }
 
-    fn has_child_dir(parent: ::std::path::PathBuf, child_name: &str) -> bool {
-        ::std::fs::read_dir(&parent)
-            .ok()
-            .and_then(|mut dir_entries| {
-                dir_entries.find(|dir_entry| {
-                    match dir_entry {
-                        &Ok(ref entry) => entry.file_name().to_str() == Some(child_name),
-                        &Err(_) => false,
-                    }
-                })
-            })
-            .is_some()
+    fn is_dir_empty(dir: &Path) -> bool {
+        if let Ok(mut entries) = fs::read_dir(dir) {
+            !entries.next().is_some()
+        } else {
+            true
+        }
     }
 
     #[test]
     fn tempdir_cleanup() {
-        let k_disk_size: usize = 116;
-        let staled_dir_name = "safe_vault-00000";
+        let root = TempDir::new("test").unwrap();
+
         {
-            let mut staled_dir = ::std::env::temp_dir();
-            staled_dir.push(staled_dir_name);
-            let _ = ::std::fs::create_dir(&staled_dir);
+            let _store = ChunkStore::new_in(root.path(), "test", 64);
+            assert!(!is_dir_empty(root.path()));
         }
-        assert!(has_child_dir(::std::env::temp_dir(), &staled_dir_name));
-        let _ = unwrap_result!(::chunk_store::ChunkStore::new(k_disk_size));
-        assert!(!has_child_dir(::std::env::temp_dir(), &staled_dir_name));
+
+        assert!(is_dir_empty(root.path()));
     }
 
     #[test]
-    fn successful_store() {
+    fn successful_put() {
         let k_disk_size: usize = 116;
-        let mut chunk_store = unwrap_result!(::chunk_store::ChunkStore::new(k_disk_size));
-
+        let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
         let mut names = vec![];
 
         {
             let mut put = |size| {
-                let name = random();
-                let data = get_random_non_empty_string(size);
+                let name = rand::random();
+                let data = generate_random_bytes(size);
                 let size_before_insert = chunk_store.current_disk_usage();
                 assert!(!chunk_store.has_chunk(&name));
-                chunk_store.put(&name, data.into_bytes());
+                chunk_store.put(&name, data);
                 assert_eq!(chunk_store.current_disk_usage(), size + size_before_insert);
                 assert!(chunk_store.has_chunk(&name));
                 names.push(name);
@@ -82,20 +73,23 @@ mod test {
             assert_eq!(put(10usize), 111usize);
             assert_eq!(put(5usize), k_disk_size);
         }
+
         assert_eq!(names.sort(), chunk_store.names().sort());
     }
 
+    // TODO: put failure due to exceeded storage space
+
     #[test]
-    fn remove_from_disk_store() {
+    fn delete() {
         let k_size: usize = 1;
         let k_disk_size: usize = 116;
-        let mut chunk_store = unwrap_result!(::chunk_store::ChunkStore::new(k_disk_size));
+        let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
 
         let mut put_and_delete = |size| {
-            let name = random();
-            let data = get_random_non_empty_string(size);
+            let name = rand::random();
+            let data = generate_random_bytes(size);
 
-            chunk_store.put(&name, data.into_bytes());
+            chunk_store.put(&name, data);
             assert_eq!(chunk_store.current_disk_usage(), size);
             chunk_store.delete(&name);
             assert_eq!(chunk_store.current_disk_usage(), 0);
@@ -109,10 +103,10 @@ mod test {
     fn put_and_get_value_should_be_same() {
         let data_size = 50;
         let k_disk_size: usize = 116;
-        let mut chunk_store = unwrap_result!(::chunk_store::ChunkStore::new(k_disk_size));
+        let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
 
-        let name = random();
-        let data = get_random_non_empty_string(data_size).into_bytes();
+        let name = rand::random();
+        let data = generate_random_bytes(data_size);
         chunk_store.put(&name, data.clone());
         let recovered = chunk_store.get(&name);
         assert_eq!(data, recovered);
@@ -122,15 +116,15 @@ mod test {
     #[test]
     fn repeatedly_storing_same_name() {
         let k_disk_size: usize = 116;
-        let mut chunk_store = unwrap_result!(::chunk_store::ChunkStore::new(k_disk_size));
+        let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
 
         let mut put = |name, size| {
-            let data = get_random_non_empty_string(size);
-            chunk_store.put(&name, data.into_bytes());
+            let data = generate_random_bytes(size);
+            chunk_store.put(&name, data);
             chunk_store.current_disk_usage()
         };
 
-        let name = random::<XorName>();
+        let name = rand::random::<XorName>();
         assert_eq!(put(name.clone(), 1usize), 1usize);
         assert_eq!(put(name.clone(), 100usize), 100usize);
         assert_eq!(put(name.clone(), 10usize), 10usize);
