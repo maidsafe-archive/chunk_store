@@ -15,6 +15,15 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+macro_rules! assert_err {
+    ($cond : expr, $error : pat) => {
+        match $cond {
+            Err($error) => (),
+            result => panic!(concat!("Expecting ", stringify!($error), " got {:?}"), result),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use chunk_store::{ChunkStore, Error};
@@ -84,10 +93,7 @@ mod test {
         let name = rand::random();
         let data = generate_random_bytes(k_disk_size + 1);
 
-        match store.put(&name, &data) {
-            Err(Error::NotEnoughSpace) => (),
-            result => panic!("Expecting Error::NotEnoughSpace, got {:?}", result),
-        }
+        assert_err!(store.put(&name, &data), Error::NotEnoughSpace);
     }
 
     #[test]
@@ -119,7 +125,7 @@ mod test {
         let name = rand::random();
         let data = generate_random_bytes(data_size);
         unwrap_result!(chunk_store.put(&name, &data));
-        let recovered = chunk_store.get(&name);
+        let recovered = unwrap_result!(chunk_store.get(&name));
         assert_eq!(data, recovered);
         assert_eq!(chunk_store.used_space(), data_size);
     }
@@ -140,5 +146,13 @@ mod test {
         assert_eq!(put(name.clone(), 100usize), 100usize);
         assert_eq!(put(name.clone(), 10usize), 10usize);
         assert_eq!(put(name.clone(), 5usize), 5usize);  // last inserted data size
+    }
+
+    #[test]
+    fn get_fails_when_name_does_not_exist() {
+        let chunk_store = unwrap_result!(ChunkStore::new("test", 64));
+        let name = rand::random();
+
+        assert_err!(chunk_store.get(&name), Error::ChunkNotFound);
     }
 }

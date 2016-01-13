@@ -23,12 +23,14 @@ use tempdir::TempDir;
 use xor_name::{XorName, slice_as_u8_64_array};
 
 const NOT_ENOUGH_SPACE_ERROR: &'static str = "Not enough storage space";
+const CHUNK_NOT_FOUND_ERROR: &'static str = "Chunk not found";
 
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
     NotEnoughSpace,
+    ChunkNotFound,
 }
 
 impl From<io::Error> for Error {
@@ -42,6 +44,7 @@ impl fmt::Display for Error {
         match *self {
             Error::Io(ref error) => error.fmt(f),
             Error::NotEnoughSpace => write!(f, "{}", NOT_ENOUGH_SPACE_ERROR),
+            Error::ChunkNotFound => write!(f, "{}", CHUNK_NOT_FOUND_ERROR),
         }
     }
 }
@@ -51,6 +54,7 @@ impl error::Error for Error {
         match *self {
             Error::Io(ref error) => error.description(),
             Error::NotEnoughSpace => NOT_ENOUGH_SPACE_ERROR,
+            Error::ChunkNotFound => CHUNK_NOT_FOUND_ERROR,
         }
     }
 
@@ -149,20 +153,21 @@ impl ChunkStore {
 
     /// Reads a data chunk stored under `name`.
     ///
-    /// If the name doesn't exist, or if there is an IO error, it returns empty
-    /// Vec.
-    ///
-    /// TODO: Add proper error reporting.
-    pub fn get(&self, name: &XorName) -> Vec<u8> {
-        self.dir_entry(name)
-            .and_then(|entry| fs::File::open(&entry.path()).ok())
-            .and_then(|mut file| {
-                let mut contents = Vec::<u8>::new();
-                file.read_to_end(&mut contents)
-                    .map(|_| contents)
-                    .ok()
-            })
-            .unwrap_or(Vec::new())
+    /// If the name doesn't exist, returns `Error::ChunkNotFound`. In Case of
+    /// an IO error, returns `Error::Io`.
+    pub fn get(&self, name: &XorName) -> Result<Vec<u8>, Error> {
+        let entry = self.dir_entry(name);
+        if entry.is_none() {
+            return Err(Error::ChunkNotFound);
+        }
+
+        let entry = entry.unwrap();
+        let mut file = try!(fs::File::open(&entry.path()));
+
+        let mut contents = Vec::<u8>::new();
+        let _ = try!(file.read_to_end(&mut contents));
+
+        Ok(contents)
     }
 
     /// Tests if a data chunk with `name` is stored in this ChunkStore.
