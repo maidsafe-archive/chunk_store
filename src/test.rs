@@ -47,6 +47,26 @@ mod test {
     }
 
     #[test]
+    fn create_multiple_instances_in_the_same_root() {
+        // root already exists
+        {
+            let root = unwrap_result!(TempDir::new("test"));
+
+            let _1 = unwrap_result!(ChunkStore::new_in(root.path(), "store-1", 64));
+            let _2 = unwrap_result!(ChunkStore::new_in(root.path(), "store-2", 64));
+        }
+
+        // root doesn't exist yet
+        {
+            let root = unwrap_result!(TempDir::new("test"));
+            let root_path = root.path().join("foo").join("bar");
+
+            let _1 = unwrap_result!(ChunkStore::new_in(&root_path, "store-1", 64));
+            let _2 = unwrap_result!(ChunkStore::new_in(&root_path, "store-2", 64));
+        }
+    }
+
+    #[test]
     fn tempdir_cleanup() {
         let root = unwrap_result!(TempDir::new("test"));
 
