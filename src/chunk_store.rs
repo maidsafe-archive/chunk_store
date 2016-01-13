@@ -15,13 +15,9 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use std::cmp;
-use std::env;
-use std::error;
-use std::fmt;
-use std::fs;
-use std::fs::File;
-use std::io;
+use rustc_serialize::hex::{FromHex, ToHex};
+use std::{cmp, env, error, fmt, fs};
+use std::io::{self, Read, Write};
 use std::path::Path;
 use tempdir::TempDir;
 use xor_name::{XorName, slice_as_u8_64_array};
@@ -83,7 +79,6 @@ impl ChunkStore {
     /// in its name and is placed in the `root` directory.
     /// If `root` doesn't exist, it will be created.
     pub fn new_in(root: &Path, prefix: &str, max_space: usize) -> Result<ChunkStore, Error> {
-
         fs::create_dir_all(root)
             .and_then(|()| TempDir::new_in(root, prefix))
             .map(|tempdir| {
@@ -103,8 +98,6 @@ impl ChunkStore {
 
     #[allow(missing_docs)]
     pub fn put(&mut self, name: &XorName, value: &[u8]) -> Result<(), Error> {
-        use std::io::Write;
-
         if !self.has_space(value.len()) {
             return Err(Error::NotEnoughSpace);
         }
@@ -114,10 +107,10 @@ impl ChunkStore {
         let _ = self.delete(name);
 
         let hex_name = self.to_hex_string(name);
-        let path_name = ::std::path::Path::new(&hex_name);
+        let path_name = Path::new(&hex_name);
         let path = self.tempdir.path().join(path_name);
 
-        File::create(&path)
+        fs::File::create(&path)
             .and_then(|mut file| {
                 file.write_all(value)
                     .and_then(|()| file.sync_all())
@@ -144,8 +137,6 @@ impl ChunkStore {
 
     #[allow(missing_docs)]
     pub fn get(&self, name: &XorName) -> Vec<u8> {
-        use std::io::Read;
-
         self.dir_entry(name)
             .and_then(|entry| fs::File::open(&entry.path()).ok())
             .and_then(|mut file| {
@@ -164,18 +155,14 @@ impl ChunkStore {
 
     #[allow(missing_docs)]
     pub fn names(&self) -> Vec<XorName> {
-        use rustc_serialize::hex::FromHex;
-        ::std::fs::read_dir(&self.tempdir.path())
+        fs::read_dir(&self.tempdir.path())
             .and_then(|dir_entries| {
-                let dir_entry_to_routing_name =
-                    |dir_entry: ::std::io::Result<::std::fs::DirEntry>| {
-                        dir_entry.ok()
-                                 .and_then(|entry| entry.file_name().into_string().ok())
-                                 .and_then(|hex_name| hex_name.from_hex().ok())
-                                 .and_then(|bytes| {
-                                     Some(XorName::new(slice_as_u8_64_array(&*bytes)))
-                                 })
-                    };
+                let dir_entry_to_routing_name = |dir_entry: io::Result<fs::DirEntry>| {
+                    dir_entry.ok()
+                             .and_then(|entry| entry.file_name().into_string().ok())
+                             .and_then(|hex_name| hex_name.from_hex().ok())
+                             .and_then(|bytes| Some(XorName::new(slice_as_u8_64_array(&*bytes))))
+                };
                 Ok(dir_entries.filter_map(dir_entry_to_routing_name).collect())
             })
             .unwrap_or(vec![])
@@ -197,7 +184,6 @@ impl ChunkStore {
     }
 
     fn to_hex_string(&self, name: &XorName) -> String {
-        use rustc_serialize::hex::ToHex;
         name.get_id().to_hex()
     }
 

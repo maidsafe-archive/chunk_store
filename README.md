@@ -1,6 +1,5 @@
 # chunk_store
 
-
 [![](https://img.shields.io/badge/Project%20SAFE-Approved-green.svg)](http://maidsafe.net/applications) [![](https://img.shields.io/badge/License-GPL3-green.svg)](https://github.com/maidsafe/chunk_store/blob/master/COPYING)
 
 **Primary Maintainer:** Adam Cigánek (adam.ciganek@maidsafe.net)
@@ -16,6 +15,6 @@
 
 ## Overview
 
-Simple, non-persistent, disk based key-value store
+Simple, non-persistent, disk-based key-value store
 
 ## Todo Items
