@@ -73,7 +73,7 @@ pub struct ChunkStore {
 }
 
 impl ChunkStore {
-    /// Create new ChunkStore with `max_space` allowed storage space.
+    /// Creates new ChunkStore with `max_space` allowed storage space.
     ///
     /// The data are stored in a temporary directory that contains `prefix`
     /// in its name and is placed in the `root` directory.
@@ -91,12 +91,21 @@ impl ChunkStore {
             .map_err(From::from)
     }
 
-    /// Create new chunkstore storing the data inside the system temp directory.
+    /// Creates new ChunkStore with `max_space` allowed storage space.
+    ///
+    /// The data are stored in a temporary directory that contains `prefix`
+    /// in its name and is placed in the system temp directory.
     pub fn new(prefix: &str, max_disk_usage: usize) -> Result<ChunkStore, Error> {
         Self::new_in(&env::temp_dir(), prefix, max_disk_usage)
     }
 
-    #[allow(missing_docs)]
+    /// Stores a new data chunk under `name`.
+    ///
+    /// If there is not enough storage space available,
+    /// returns `Error::NotEnoughSpace`. In case of an IO error, it returns
+    /// `Error::Io`.
+    ///
+    /// If the name already exists, it will be overwritten.
     pub fn put(&mut self, name: &XorName, value: &[u8]) -> Result<(), Error> {
         if !self.has_space(value.len()) {
             return Err(Error::NotEnoughSpace);
@@ -122,7 +131,10 @@ impl ChunkStore {
             .map_err(From::from)
     }
 
-    #[allow(missing_docs)]
+    /// Deletes the data chunk stored under `name`.
+    ///
+    /// If the name doesn't exist, it does nothing and returns `Ok`. In case
+    /// of an IO error it returns `Error::Io`.
     pub fn delete(&mut self, name: &XorName) -> Result<(), Error> {
         if let Some(entry) = self.dir_entry(name) {
             if let Ok(metadata) = entry.metadata() {
@@ -135,7 +147,12 @@ impl ChunkStore {
         }
     }
 
-    #[allow(missing_docs)]
+    /// Reads a data chunk stored under `name`.
+    ///
+    /// If the name doesn't exist, or if there is an IO error, it returns empty
+    /// Vec.
+    ///
+    /// TODO: Add proper error reporting.
     pub fn get(&self, name: &XorName) -> Vec<u8> {
         self.dir_entry(name)
             .and_then(|entry| fs::File::open(&entry.path()).ok())
@@ -148,12 +165,12 @@ impl ChunkStore {
             .unwrap_or(Vec::new())
     }
 
-    #[allow(missing_docs)]
+    /// Tests if a data chunk with `name` is stored in this ChunkStore.
     pub fn has_chunk(&self, name: &XorName) -> bool {
         self.dir_entry(name).is_some()
     }
 
-    #[allow(missing_docs)]
+    /// Lists names of all data chunks currently stored in this ChunkStore.
     pub fn names(&self) -> Vec<XorName> {
         fs::read_dir(&self.tempdir.path())
             .and_then(|dir_entries| {
@@ -168,17 +185,18 @@ impl ChunkStore {
             .unwrap_or(vec![])
     }
 
-    #[allow(missing_docs)]
+    /// Returns the maximum amount of storage space available for this ChunkStore.
     pub fn max_space(&self) -> usize {
         self.max_space
     }
 
-    #[allow(missing_docs)]
+    /// Returns the amount of storage space already used by this ChunkStore.
     pub fn used_space(&self) -> usize {
         self.used_space
     }
 
-    #[allow(missing_docs)]
+    /// Tests if there is enough storage space to store a data chunk of
+    /// `required_space` bytes.
     pub fn has_space(&self, required_space: usize) -> bool {
         self.used_space + required_space <= self.max_space
     }
