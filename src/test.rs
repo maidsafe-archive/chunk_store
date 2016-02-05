@@ -33,9 +33,10 @@ mod test {
     use tempdir::TempDir;
     use xor_name::XorName;
 
-    fn generate_random_bytes(size: usize) -> Vec<u8> {
+    #[cfg_attr(feature="clippy", allow(cast_possible_truncation))]
+    fn generate_random_bytes(size: u64) -> Vec<u8> {
         use rand::Rng;
-        rand::thread_rng().gen_iter().take(size).collect()
+        rand::thread_rng().gen_iter().take(size as usize).collect()
     }
 
     fn is_dir_empty(dir: &Path) -> bool {
@@ -80,7 +81,7 @@ mod test {
 
     #[test]
     fn successful_put() {
-        let k_disk_size: usize = 116;
+        let k_disk_size = 116;
         let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
         let mut names = vec![];
 
@@ -97,10 +98,10 @@ mod test {
                 chunk_store.used_space()
             };
 
-            assert_eq!(put(1usize), 1usize);
-            assert_eq!(put(100usize), 101usize);
-            assert_eq!(put(10usize), 111usize);
-            assert_eq!(put(5usize), k_disk_size);
+            assert_eq!(put(1u64), 1u64);
+            assert_eq!(put(100u64), 101u64);
+            assert_eq!(put(10u64), 111u64);
+            assert_eq!(put(5u64), k_disk_size);
         }
 
         assert_eq!(names.sort(), chunk_store.names().sort());
@@ -118,8 +119,8 @@ mod test {
 
     #[test]
     fn delete() {
-        let k_size: usize = 1;
-        let k_disk_size: usize = 116;
+        let k_size: u64 = 1;
+        let k_disk_size: u64 = 116;
         let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
 
         let mut put_and_delete = |size| {
@@ -139,7 +140,7 @@ mod test {
     #[test]
     fn put_and_get_value_should_be_same() {
         let data_size = 50;
-        let k_disk_size: usize = 116;
+        let k_disk_size: u64 = 116;
         let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
 
         let name = rand::random();
@@ -152,7 +153,7 @@ mod test {
 
     #[test]
     fn repeatedly_storing_same_name() {
-        let k_disk_size: usize = 116;
+        let k_disk_size: u64 = 116;
         let mut chunk_store = unwrap_result!(ChunkStore::new("test", k_disk_size));
 
         let mut put = |name, size| {
@@ -162,10 +163,10 @@ mod test {
         };
 
         let name = rand::random::<XorName>();
-        assert_eq!(put(name.clone(), 1usize), 1usize);
-        assert_eq!(put(name.clone(), 100usize), 100usize);
-        assert_eq!(put(name.clone(), 10usize), 10usize);
-        assert_eq!(put(name.clone(), 5usize), 5usize);  // last inserted data size
+        assert_eq!(put(name.clone(), 1u64), 1u64);
+        assert_eq!(put(name.clone(), 100u64), 100u64);
+        assert_eq!(put(name.clone(), 10u64), 10u64);
+        assert_eq!(put(name.clone(), 5u64), 5u64);  // last inserted data size
     }
 
     #[test]
