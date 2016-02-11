@@ -72,8 +72,8 @@ impl error::Error for Error {
 /// The data chunks are deleted when the ChunkStore goes out of scope.
 pub struct ChunkStore {
     tempdir: TempDir,
-    max_space: usize,
-    used_space: usize,
+    max_space: u64,
+    used_space: u64,
 }
 
 impl ChunkStore {
@@ -82,7 +82,10 @@ impl ChunkStore {
     /// The data are stored in a temporary directory that contains `prefix`
     /// in its name and is placed in the `root` directory.
     /// If `root` doesn't exist, it will be created.
-    pub fn new_in<P: AsRef<Path>>(root: P, prefix: &str, max_space: usize) -> Result<ChunkStore, Error> {
+    pub fn new_in<P: AsRef<Path>>(root: P,
+                                  prefix: &str,
+                                  max_space: u64)
+                                  -> Result<ChunkStore, Error> {
         fs::create_dir_all(root.as_ref())
             .and_then(|()| TempDir::new_in(root.as_ref(), prefix))
             .map(|tempdir| {
@@ -99,7 +102,7 @@ impl ChunkStore {
     ///
     /// The data are stored in a temporary directory that contains `prefix`
     /// in its name and is placed in the system temp directory.
-    pub fn new(prefix: &str, max_disk_usage: usize) -> Result<ChunkStore, Error> {
+    pub fn new(prefix: &str, max_disk_usage: u64) -> Result<ChunkStore, Error> {
         Self::new_in(&env::temp_dir(), prefix, max_disk_usage)
     }
 
@@ -111,7 +114,7 @@ impl ChunkStore {
     ///
     /// If the name already exists, it will be overwritten.
     pub fn put(&mut self, name: &XorName, value: &[u8]) -> Result<(), Error> {
-        if !self.has_space(value.len()) {
+        if !self.has_space(value.len() as u64) {
             return Err(Error::NotEnoughSpace);
         }
 
@@ -129,7 +132,7 @@ impl ChunkStore {
                     .and_then(|()| file.sync_all())
                     .and_then(|()| file.metadata())
                     .map(|metadata| {
-                        self.used_space += metadata.len() as usize;
+                        self.used_space += metadata.len();
                     })
             })
             .map_err(From::from)
@@ -142,7 +145,7 @@ impl ChunkStore {
     pub fn delete(&mut self, name: &XorName) -> Result<(), Error> {
         if let Some(entry) = self.dir_entry(name) {
             if let Ok(metadata) = entry.metadata() {
-                self.used_space -= cmp::min(metadata.len() as usize, self.used_space);
+                self.used_space -= cmp::min(metadata.len(), self.used_space);
             }
 
             fs::remove_file(entry.path()).map_err(From::from)
@@ -156,12 +159,10 @@ impl ChunkStore {
     /// If the name doesn't exist, returns `Error::ChunkNotFound`. In Case of
     /// an IO error, returns `Error::Io`.
     pub fn get(&self, name: &XorName) -> Result<Vec<u8>, Error> {
-        let entry = self.dir_entry(name);
-        if entry.is_none() {
-            return Err(Error::ChunkNotFound);
-        }
-
-        let entry = entry.unwrap();
+        let entry = match self.dir_entry(name) {
+            Some(entry) => entry,
+            None => return Err(Error::ChunkNotFound),
+        };
         let mut file = try!(fs::File::open(&entry.path()));
 
         let mut contents = Vec::<u8>::new();
@@ -187,22 +188,22 @@ impl ChunkStore {
                 };
                 Ok(dir_entries.filter_map(dir_entry_to_routing_name).collect())
             })
-            .unwrap_or(vec![])
+            .unwrap_or_else(|_| Vec::new())
     }
 
     /// Returns the maximum amount of storage space available for this ChunkStore.
-    pub fn max_space(&self) -> usize {
+    pub fn max_space(&self) -> u64 {
         self.max_space
     }
 
     /// Returns the amount of storage space already used by this ChunkStore.
-    pub fn used_space(&self) -> usize {
+    pub fn used_space(&self) -> u64 {
         self.used_space
     }
 
     /// Tests if there is enough storage space to store a data chunk of
     /// `required_space` bytes.
-    pub fn has_space(&self, required_space: usize) -> bool {
+    pub fn has_space(&self, required_space: u64) -> bool {
         self.used_space + required_space <= self.max_space
     }
 
