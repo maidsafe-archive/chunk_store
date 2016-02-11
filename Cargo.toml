@@ -19,6 +19,3 @@ xor_name = "~0.0.3"
 [dev-dependencies]
 maidsafe_utilities = "~0.1.5"
 rand = "~0.3.13"
-
-[features]
-default=[]
