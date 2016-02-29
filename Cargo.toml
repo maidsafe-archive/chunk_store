@@ -10,12 +10,12 @@ repository = "https://github.com/maidsafe/chunk_store"
 version = "0.2.0"
 
 [dependencies]
-clippy = {version = "~0.0.37", optional = true}
+clippy = {version = "~0.0.44", optional = true}
 log = "~0.3.5"
 rustc-serialize = "~0.3.18"
 tempdir = "~0.3.4"
-xor_name = "~0.0.3"
+xor_name = "~0.0.4"
 
 [dev-dependencies]
-maidsafe_utilities = "~0.1.5"
-rand = "~0.3.13"
+maidsafe_utilities = "~0.2.1"
+rand = "~0.3.14"
