@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ChunkStore` struct in crate `chunk_store`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ChunkStore">
+
+    <title>chunk_store::ChunkStore - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+
+    <link rel="shortcut icon" href="http://maidsafe.net/img/favicon.ico">
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <a href='../chunk_store/index.html'><img src='https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png' alt='' width='100'></a>
+        <p class='location'><a href='index.html'>chunk_store</a></p><script>window.sidebarCurrent = {name: 'ChunkStore', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>chunk_store</a>::<wbr><a class='struct' href=''>ChunkStore</a></span><span class='out-of-band'><span id='render-detail'>
+            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                [<span class='inner'>&#x2212;</span>]
+            </a>
+        </span><a id='src-50' class='srclink' href='../src/chunk_store/chunk_store.rs.html#73-77' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ChunkStore {
+    // some fields omitted
+}</pre><div class='docblock'><p>ChunkStore is a collection for holding all data chunks.
+Implements a maximum disk usage to restrict storage.</p>
+
+<p>The data chunks are deleted when the ChunkStore goes out of scope.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><code>impl <a class='struct' href='../chunk_store/struct.ChunkStore.html' title='chunk_store::ChunkStore'>ChunkStore</a></code></h3><div class='impl-items'><h4 id='method.new_in' class='method'><code>fn <a href='#method.new_in' class='fnname'>new_in</a>&lt;P: <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.AsRef.html' title='core::convert::AsRef'>AsRef</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/std/path/struct.Path.html' title='std::path::Path'>Path</a>&gt;&gt;(root: P, prefix: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>, max_space: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../chunk_store/struct.ChunkStore.html' title='chunk_store::ChunkStore'>ChunkStore</a>, <a class='enum' href='../chunk_store/enum.Error.html' title='chunk_store::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Creates new ChunkStore with <code>max_space</code> allowed storage space.</p>
+
+<p>The data are stored in a temporary directory that contains <code>prefix</code>
+in its name and is placed in the <code>root</code> directory.
+If <code>root</code> doesn&#39;t exist, it will be created.</p>
+</div><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(prefix: &amp;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a>, max_disk_usage: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../chunk_store/struct.ChunkStore.html' title='chunk_store::ChunkStore'>ChunkStore</a>, <a class='enum' href='../chunk_store/enum.Error.html' title='chunk_store::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Creates new ChunkStore with <code>max_space</code> allowed storage space.</p>
+
+<p>The data are stored in a temporary directory that contains <code>prefix</code>
+in its name and is placed in the system temp directory.</p>
+</div><h4 id='method.put' class='method'><code>fn <a href='#method.put' class='fnname'>put</a>(&amp;mut self, name: &amp;<a class='struct' href='../xor_name/struct.XorName.html' title='xor_name::XorName'>XorName</a>, value: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='enum' href='../chunk_store/enum.Error.html' title='chunk_store::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Stores a new data chunk under <code>name</code>.</p>
+
+<p>If there is not enough storage space available,
+returns <code>Error::NotEnoughSpace</code>. In case of an IO error, it returns
+<code>Error::Io</code>.</p>
+
+<p>If the name already exists, it will be overwritten.</p>
+</div><h4 id='method.delete' class='method'><code>fn <a href='#method.delete' class='fnname'>delete</a>(&amp;mut self, name: &amp;<a class='struct' href='../xor_name/struct.XorName.html' title='xor_name::XorName'>XorName</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>, <a class='enum' href='../chunk_store/enum.Error.html' title='chunk_store::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Deletes the data chunk stored under <code>name</code>.</p>
+
+<p>If the name doesn&#39;t exist, it does nothing and returns <code>Ok</code>. In case
+of an IO error it returns <code>Error::Io</code>.</p>
+</div><h4 id='method.get' class='method'><code>fn <a href='#method.get' class='fnname'>get</a>(&amp;self, name: &amp;<a class='struct' href='../xor_name/struct.XorName.html' title='xor_name::XorName'>XorName</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt;, <a class='enum' href='../chunk_store/enum.Error.html' title='chunk_store::Error'>Error</a>&gt;</code></h4>
+<div class='docblock'><p>Reads a data chunk stored under <code>name</code>.</p>
+
+<p>If the name doesn&#39;t exist, returns <code>Error::ChunkNotFound</code>. In Case of
+an IO error, returns <code>Error::Io</code>.</p>
+</div><h4 id='method.has_chunk' class='method'><code>fn <a href='#method.has_chunk' class='fnname'>has_chunk</a>(&amp;self, name: &amp;<a class='struct' href='../xor_name/struct.XorName.html' title='xor_name::XorName'>XorName</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>Tests if a data chunk with <code>name</code> is stored in this ChunkStore.</p>
+</div><h4 id='method.names' class='method'><code>fn <a href='#method.names' class='fnname'>names</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../xor_name/struct.XorName.html' title='xor_name::XorName'>XorName</a>&gt;</code></h4>
+<div class='docblock'><p>Lists names of all data chunks currently stored in this ChunkStore.</p>
+</div><h4 id='method.max_space' class='method'><code>fn <a href='#method.max_space' class='fnname'>max_space</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a></code></h4>
+<div class='docblock'><p>Returns the maximum amount of storage space available for this ChunkStore.</p>
+</div><h4 id='method.used_space' class='method'><code>fn <a href='#method.used_space' class='fnname'>used_space</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a></code></h4>
+<div class='docblock'><p>Returns the amount of storage space already used by this ChunkStore.</p>
+</div><h4 id='method.has_space' class='method'><code>fn <a href='#method.has_space' class='fnname'>has_space</a>(&amp;self, required_space: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>Tests if there is enough storage space to store a data chunk of
+<code>required_space</code> bytes.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "chunk_store";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>
