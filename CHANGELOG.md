@@ -1,5 +1,8 @@
 # Chunk Store - Change Log
 
+## [0.3.0]
+- Updated dependencies
+
 ## [0.2.0]
 - Changed instances of `usize` to `u64`
 - Fixed Clippy warnings
