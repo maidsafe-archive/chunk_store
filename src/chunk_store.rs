@@ -1,4 +1,4 @@
-// Copyright 2015 MaidSafe.net limited.
+// Copyright 2016 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -15,77 +15,74 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::hex::{FromHex, ToHex};
-use std::{cmp, env, error, fmt, fs};
+use std::{cmp, env, fs};
 use std::io::{self, Read, Write};
-use std::path::Path;
+use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
+
+use maidsafe_utilities::serialisation::{self, SerialisationError};
+use rustc_serialize::{Decodable, Encodable};
+use rustc_serialize::hex::{FromHex, ToHex};
 use tempdir::TempDir;
-use xor_name::{XorName, slice_as_u8_64_array};
 
-const NOT_ENOUGH_SPACE_ERROR: &'static str = "Not enough storage space";
-const CHUNK_NOT_FOUND_ERROR: &'static str = "Chunk not found";
-
-#[allow(missing_docs)]
-#[derive(Debug)]
-pub enum Error {
-    Io(io::Error),
-    NotEnoughSpace,
-    ChunkNotFound,
-}
-
-impl From<io::Error> for Error {
-    fn from(error: io::Error) -> Error {
-        Error::Io(error)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::Io(ref error) => error.fmt(f),
-            Error::NotEnoughSpace => write!(f, "{}", NOT_ENOUGH_SPACE_ERROR),
-            Error::ChunkNotFound => write!(f, "{}", CHUNK_NOT_FOUND_ERROR),
+quick_error! {
+    /// `ChunkStore` error.
+    #[derive(Debug)]
+    pub enum Error {
+        /// Error during filesystem IO operations.
+        Io(error: io::Error) {
+            description("IO error")
+            display("IO error: {}", error)
+            cause(error)
+            from()
+        }
+        /// Error during serialisation or deserialisation of keys or values.
+        Serialisation(error: SerialisationError) {
+            description("Serialisation error")
+            display("Serialisation error: {}", error)
+            cause(error)
+            from()
+        }
+        /// Not enough space in `ChunkStore` to perform `put`.
+        NotEnoughSpace {
+            description("Not enough space")
+            display("Not enough space")
+            from()
+        }
+        /// Key, Value pair not found in `ChunkStore`.
+        NotFound {
+            description("Key, Value not found")
+            display("Key, Value not found")
+            from()
         }
     }
 }
 
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::Io(ref error) => error.description(),
-            Error::NotEnoughSpace => NOT_ENOUGH_SPACE_ERROR,
-            Error::ChunkNotFound => CHUNK_NOT_FOUND_ERROR,
-        }
-    }
 
-    fn cause(&self) -> Option<&error::Error> {
-        match *self {
-            Error::Io(ref error) => Some(error),
-            _ => None,
-        }
-    }
-}
 
-/// ChunkStore is a collection for holding all data chunks.
-/// Implements a maximum disk usage to restrict storage.
+/// `ChunkStore` is a store of data held as serialised files on disk, implementing a maximum disk
+/// usage to restrict storage.
 ///
-/// The data chunks are deleted when the ChunkStore goes out of scope.
-pub struct ChunkStore {
+/// The data chunks are deleted when the `ChunkStore` goes out of scope.
+pub struct ChunkStore<Key, Value> {
     tempdir: TempDir,
     max_space: u64,
     used_space: u64,
+    phantom: PhantomData<(Key, Value)>,
 }
 
-impl ChunkStore {
+impl<Key, Value> ChunkStore<Key, Value>
+    where Key: Decodable + Encodable,
+          Value: Decodable + Encodable
+{
     /// Creates new ChunkStore with `max_space` allowed storage space.
     ///
-    /// The data are stored in a temporary directory that contains `prefix`
-    /// in its name and is placed in the `root` directory.
-    /// If `root` doesn't exist, it will be created.
+    /// The data is stored in a temporary directory that contains `prefix` in its name and is placed
+    /// in the `root` directory.  If `root` doesn't exist, it will be created.
     pub fn new_in<P: AsRef<Path>>(root: P,
                                   prefix: &str,
                                   max_space: u64)
-                                  -> Result<ChunkStore, Error> {
+                                  -> Result<ChunkStore<Key, Value>, Error> {
         fs::create_dir_all(root.as_ref())
             .and_then(|()| TempDir::new_in(root.as_ref(), prefix))
             .map(|tempdir| {
@@ -93,6 +90,7 @@ impl ChunkStore {
                     tempdir: tempdir,
                     max_space: max_space,
                     used_space: 0,
+                    phantom: PhantomData,
                 }
             })
             .map_err(From::from)
@@ -100,35 +98,32 @@ impl ChunkStore {
 
     /// Creates new ChunkStore with `max_space` allowed storage space.
     ///
-    /// The data are stored in a temporary directory that contains `prefix`
-    /// in its name and is placed in the system temp directory.
-    pub fn new(prefix: &str, max_disk_usage: u64) -> Result<ChunkStore, Error> {
-        Self::new_in(&env::temp_dir(), prefix, max_disk_usage)
+    /// The data is stored in a temporary directory that contains `prefix` in its name and is placed
+    /// in the system temp directory.
+    pub fn new(prefix: &str, max_space: u64) -> Result<ChunkStore<Key, Value>, Error> {
+        Self::new_in(&env::temp_dir(), prefix, max_space)
     }
 
-    /// Stores a new data chunk under `name`.
+    /// Stores a new data chunk under `key`.
     ///
-    /// If there is not enough storage space available,
-    /// returns `Error::NotEnoughSpace`. In case of an IO error, it returns
-    /// `Error::Io`.
+    /// If there is not enough storage space available, returns `Error::NotEnoughSpace`.  In case of
+    // an IO error, it returns `Error::Io`.
     ///
-    /// If the name already exists, it will be overwritten.
-    pub fn put(&mut self, name: &XorName, value: &[u8]) -> Result<(), Error> {
-        if !self.has_space(value.len() as u64) {
+    /// If the key already exists, it will be overwritten.
+    pub fn put(&mut self, key: &Key, value: &Value) -> Result<(), Error> {
+        let serialised_value = try!(serialisation::serialise(value));
+        if self.used_space + serialised_value.len() as u64 > self.max_space {
             return Err(Error::NotEnoughSpace);
         }
 
-        // If a file with name 'name' already exists, delete it.
-        // We don't care if the delete fails here.
-        let _ = self.delete(name);
+        // If a file corresponding to 'key' already exists, delete it.
+        let file_path = try!(self.file_path(key));
+        let _ = self.do_delete(&file_path);
 
-        let hex_name = self.to_hex_string(name);
-        let path_name = Path::new(&hex_name);
-        let path = self.tempdir.path().join(path_name);
-
-        fs::File::create(&path)
+        // Write the file.
+        fs::File::create(&file_path)
             .and_then(|mut file| {
-                file.write_all(value)
+                file.write_all(&serialised_value)
                     .and_then(|()| file.sync_all())
                     .and_then(|()| file.metadata())
                     .map(|metadata| {
@@ -138,53 +133,52 @@ impl ChunkStore {
             .map_err(From::from)
     }
 
-    /// Deletes the data chunk stored under `name`.
+    /// Deletes the data chunk stored under `key`.
     ///
-    /// If the name doesn't exist, it does nothing and returns `Ok`. In case
-    /// of an IO error it returns `Error::Io`.
-    pub fn delete(&mut self, name: &XorName) -> Result<(), Error> {
-        if let Some(entry) = self.dir_entry(name) {
-            if let Ok(metadata) = entry.metadata() {
-                self.used_space -= cmp::min(metadata.len(), self.used_space);
-            }
+    /// If the data doesn't exist, it does nothing and returns `Ok`.  In the case of an IO error, it
+    /// returns `Error::Io`.
+    pub fn delete(&mut self, key: &Key) -> Result<(), Error> {
+        let file_path = try!(self.file_path(key));
+        self.do_delete(&file_path)
+    }
 
-            fs::remove_file(entry.path()).map_err(From::from)
-        } else {
-            Ok(())
+    /// Returns a data chunk previously stored under `key`.
+    ///
+    /// If the data file can't be accessed, it returns `Error::ChunkNotFound`.
+    pub fn get(&self, key: &Key) -> Result<Value, Error> {
+        match fs::File::open(try!(self.file_path(key))) {
+            Ok(mut file) => {
+                let mut contents = Vec::<u8>::new();
+                let _ = try!(file.read_to_end(&mut contents));
+                Ok(try!(serialisation::deserialise::<Value>(&contents)))
+            }
+            Err(_) => Err(Error::NotFound),
         }
     }
 
-    /// Reads a data chunk stored under `name`.
-    ///
-    /// If the name doesn't exist, returns `Error::ChunkNotFound`. In Case of
-    /// an IO error, returns `Error::Io`.
-    pub fn get(&self, name: &XorName) -> Result<Vec<u8>, Error> {
-        let entry = match self.dir_entry(name) {
-            Some(entry) => entry,
-            None => return Err(Error::ChunkNotFound),
+    /// Tests if a data chunk has been previously stored under `key`.
+    pub fn has(&self, key: &Key) -> bool {
+        let file_path = if let Ok(path) = self.file_path(key) {
+            path
+        } else {
+            return false;
         };
-        let mut file = try!(fs::File::open(&entry.path()));
-
-        let mut contents = Vec::<u8>::new();
-        let _ = try!(file.read_to_end(&mut contents));
-
-        Ok(contents)
+        if let Ok(metadata) = fs::metadata(file_path) {
+            return metadata.is_file();
+        } else {
+            false
+        }
     }
 
-    /// Tests if a data chunk with `name` is stored in this ChunkStore.
-    pub fn has_chunk(&self, name: &XorName) -> bool {
-        self.dir_entry(name).is_some()
-    }
-
-    /// Lists names of all data chunks currently stored in this ChunkStore.
-    pub fn names(&self) -> Vec<XorName> {
+    /// Lists all keys of currently-data stored.
+    pub fn keys(&self) -> Vec<Key> {
         fs::read_dir(&self.tempdir.path())
             .and_then(|dir_entries| {
                 let dir_entry_to_routing_name = |dir_entry: io::Result<fs::DirEntry>| {
                     dir_entry.ok()
                              .and_then(|entry| entry.file_name().into_string().ok())
                              .and_then(|hex_name| hex_name.from_hex().ok())
-                             .and_then(|bytes| Some(XorName::new(slice_as_u8_64_array(&*bytes))))
+                             .and_then(|bytes| serialisation::deserialise::<Key>(&*bytes).ok())
                 };
                 Ok(dir_entries.filter_map(dir_entry_to_routing_name).collect())
             })
@@ -201,26 +195,18 @@ impl ChunkStore {
         self.used_space
     }
 
-    /// Tests if there is enough storage space to store a data chunk of
-    /// `required_space` bytes.
-    pub fn has_space(&self, required_space: u64) -> bool {
-        self.used_space + required_space <= self.max_space
+    fn do_delete(&mut self, file_path: &Path) -> Result<(), Error> {
+        if let Ok(metadata) = fs::metadata(file_path) {
+            self.used_space -= cmp::min(metadata.len(), self.used_space);
+            fs::remove_file(file_path).map_err(From::from)
+        } else {
+            Ok(())
+        }
     }
 
-    fn to_hex_string(&self, name: &XorName) -> String {
-        name.get_id().to_hex()
-    }
-
-    fn dir_entry(&self, name: &XorName) -> Option<fs::DirEntry> {
-        fs::read_dir(self.tempdir.path()).ok().and_then(|mut entries| {
-            let hex_name = self.to_hex_string(name);
-            entries.find(|entry| {
-                       match *entry {
-                           Ok(ref entry) => entry.file_name().to_str() == Some(&hex_name),
-                           Err(_) => false,
-                       }
-                   })
-                   .and_then(|entry| entry.ok())
-        })
+    fn file_path(&self, key: &Key) -> Result<PathBuf, Error> {
+        let filename = try!(serialisation::serialise(key)).to_hex();
+        let path_name = Path::new(&filename);
+        Ok(self.tempdir.path().join(path_name))
     }
 }
