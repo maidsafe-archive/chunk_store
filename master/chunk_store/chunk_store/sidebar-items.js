@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Error",""]],"struct":[["ChunkStore","ChunkStore is a collection for holding all data chunks. Implements a maximum disk usage to restrict storage."]]});
+initSidebarItems({"enum":[["Error","`ChunkStore` error."]],"struct":[["ChunkStore","`ChunkStore` is a store of data held as serialised files on disk, implementing a maximum disk usage to restrict storage."]]});
