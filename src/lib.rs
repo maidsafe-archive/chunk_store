@@ -42,15 +42,14 @@
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
 #![cfg_attr(feature="clippy", allow(use_debug))]
 
-extern crate rustc_serialize;
-extern crate tempdir;
-extern crate xor_name;
-
-#[cfg(test)]
-// not unused - but using only macros.
-#[allow(unused_extern_crates)]
 #[macro_use]
 extern crate maidsafe_utilities;
+#[allow(unused_extern_crates)]
+// Needed because the crate is only used for macros
+#[macro_use]
+extern crate quick_error;
+extern crate rustc_serialize;
+extern crate tempdir;
 
 #[cfg(test)]
 extern crate rand;
