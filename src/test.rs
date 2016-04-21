@@ -116,7 +116,10 @@ mod test {
                 assert!(chunk_store.used_space() <= chunks.total_size);
             };
 
-            for (index, &(ref data, ref size)) in chunks.data_and_sizes.iter().enumerate().rev() {
+            for (index, &(ref data, ref size)) in chunks.data_and_sizes
+                                                        .iter()
+                                                        .enumerate()
+                                                        .rev() {
                 put(index, data, size);
             }
         }
@@ -185,5 +188,26 @@ mod test {
         let chunk_store = unwrap_result!(ChunkStore::<u8, u8>::new("test", 64));
         let key = rand::random();
         assert_err!(chunk_store.get(&key), Error::NotFound);
+    }
+
+    #[test]
+    fn keys() {
+        let chunks = generate_random_chunks();
+        let mut chunk_store = unwrap_result!(ChunkStore::new("test", chunks.total_size));
+
+        for (index, &(ref data, _)) in chunks.data_and_sizes.iter().enumerate() {
+            assert!(!chunk_store.keys().contains(&index));
+            unwrap_result!(chunk_store.put(&index, data));
+            assert!(chunk_store.keys().contains(&index));
+            assert_eq!(chunk_store.keys().len(), index + 1);
+        }
+
+        for (index, _) in chunks.data_and_sizes.iter().enumerate() {
+            assert!(chunk_store.keys().contains(&index));
+            unwrap_result!(chunk_store.delete(&index));
+            assert!(!chunk_store.keys().contains(&index));
+            assert_eq!(chunk_store.keys().len(),
+                       chunks.data_and_sizes.len() - index - 1);
+        }
     }
 }
