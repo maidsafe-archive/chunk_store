@@ -2,9 +2,7 @@
 
 [![](https://img.shields.io/badge/Project%20SAFE-Approved-green.svg)](http://maidsafe.net/applications) [![](https://img.shields.io/badge/License-GPL3-green.svg)](https://github.com/maidsafe/chunk_store/blob/master/COPYING)
 
-**Primary Maintainer:** Adam Cigánek (adam.ciganek@maidsafe.net)
-
-**Secondary Maintainer:** Fraser Hutchison (fraser.hutchison@maidsafe.net)
+**Maintainer:** Andreas Fackler (andreas.fackler@maidsafe.net)
 
 |Crate|Linux/OS X|Windows|Coverage|Issues|
 |:---:|:--------:|:-----:|:------:|:----:|
