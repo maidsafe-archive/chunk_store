@@ -3,15 +3,15 @@ authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "A simple, non-persistent, disk-based key-value store."
 documentation = "http://docs.maidsafe.net/chunk_store/latest"
 homepage = "http://maidsafe.net"
-license = "GPL-3.0/MaidSafe.net Commercial License 1.0"
+license = "GPL-3.0"
 name = "chunk_store"
 readme = "README.md"
 repository = "https://github.com/maidsafe/chunk_store"
-version = "0.4.0"
+version = "0.4.1"
 
 [dependencies]
-clippy = {version = "~0.0.63", optional = true}
-maidsafe_utilities = "~0.5.3"
+clippy = {version = "~0.0.76", optional = true}
+maidsafe_utilities = "~0.6.0"
 quick-error = "1.0.0"
 rustc-serialize = "~0.3.19"
 tempdir = "~0.3.4"
